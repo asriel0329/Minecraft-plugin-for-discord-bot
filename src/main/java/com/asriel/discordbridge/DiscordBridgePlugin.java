@@ -14,6 +14,7 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 public class DiscordBridgePlugin extends JavaPlugin implements Listener {
@@ -40,13 +41,14 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         String player = event.getPlayer().getName();
         String message = event.getMessage();
-        // 在新 thread 發送，避免阻塞遊戲
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
                 URL url = new URL(discordBotUrl + "/mc-chat");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(3000); // 新增
+                conn.setReadTimeout(3000);    // 新增
                 conn.setDoOutput(true);
                 String json = "{\"player\":\"" + player + "\",\"message\":\"" + message + "\"}";
                 try (OutputStream os = conn.getOutputStream()) {
@@ -64,8 +66,13 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
         try {
             int port = getConfig().getInt("server-port", 8080);
             server = HttpServer.create(new InetSocketAddress(port), 0);
+            server.setExecutor(Executors.newCachedThreadPool()); // 新增
             server.createContext("/players", exchange -> {
-                if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) return;
+                if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
+                    exchange.sendResponseHeaders(405, -1); // 新增
+                    exchange.close();
+                    return;
+                }
                 String players = Bukkit.getOnlinePlayers()
                         .stream()
                         .map(Player::getName)
@@ -73,7 +80,11 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
                 sendResponse(exchange, "{\"players\":\"" + players + "\"}");
             });
             server.createContext("/player", exchange -> {
-                if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) return;
+                if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
+                    exchange.sendResponseHeaders(405, -1);
+                    exchange.close();
+                    return;
+                }
                 String path = exchange.getRequestURI().getPath();
                 String name = path.replace("/player/", "");
                 Player player = Bukkit.getPlayer(name);
@@ -91,16 +102,20 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
                         + "}";
                 sendResponse(exchange, json);
             });
-	    server.createContext("/discord-chat", exchange -> {
-	    	if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) return;
-    		String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-    		String user = body.replaceAll(".*\"user\":\"([^\"]+)\".*", "$1");
-    		String msg = body.replaceAll(".*\"message\":\"([^\"]+)\".*", "$1");
-   	 	Bukkit.getScheduler().runTask(this, () -> {
-        		Bukkit.broadcastMessage("§9[Discord] §f" + user + ": " + msg);
-    	    	});
-    		sendResponse(exchange, "{\"ok\":true}");
-	    });
+            server.createContext("/discord-chat", exchange -> {
+                if (!exchange.getRequestMethod().equalsIgnoreCase("POST")) {
+                    exchange.sendResponseHeaders(405, -1);
+                    exchange.close();
+                    return;
+                }
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                String user = body.replaceAll(".*\"user\":\"([^\"]+)\".*", "$1");
+                String msg = body.replaceAll(".*\"message\":\"([^\"]+)\".*", "$1");
+                Bukkit.getScheduler().runTask(this, () -> {
+                    Bukkit.broadcastMessage("§9[Discord] §f" + user + ": " + msg);
+                });
+                sendResponse(exchange, "{\"ok\":true}");
+            });
             server.start();
         } catch (IOException e) {
             e.printStackTrace();
