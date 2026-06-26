@@ -16,6 +16,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerAdvancementDoneEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 
 public class DiscordBridgePlugin extends JavaPlugin implements Listener {
     private HttpServer server;
@@ -61,6 +64,94 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
             }
         });
     }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        String deathMessage = event.getDeathMessage();
+        if (deathMessage == null) return;
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                URL url = new URL(discordBotUrl + "/server-log");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+                conn.setDoOutput(true);
+                String escaped = deathMessage.replace("\"", "\\\"");
+                String json = "{\"type\":\"death\",\"message\":\"" + escaped + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception e) {
+                getLogger().warning("無法傳送死亡訊息: " + e.getMessage());
+            }
+        });
+    }
+
+    @EventHandler
+    public void onPlayerAdvancement(PlayerAdvancementDoneEvent event) {
+        // 過濾掉 Minecraft 內部用的 recipe/root 進度
+        String key = event.getAdvancement().getKey().getKey();
+        if (key.startsWith("recipes/") || key.equals("root")) return;
+
+        String player = event.getPlayer().getName();
+        String title = event.getAdvancement().getKey().getKey()
+            .replace("_", " ");
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                URL url = new URL(discordBotUrl + "/server-log");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+                conn.setDoOutput(true);
+                String json = "{\"type\":\"advancement\",\"player\":\"" + player
+                    + "\",\"advancement\":\"" + title + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception e) {
+                getLogger().warning("無法傳送成就訊息: " + e.getMessage());
+            }
+        });
+    }
+
+    @EventHandler
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        String player = event.getPlayer().getName();
+        String command = event.getMessage(); // 包含 / 開頭
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                URL url = new URL(discordBotUrl + "/server-log");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+                conn.setDoOutput(true);
+                String escaped = command.replace("\"", "\\\"");
+                String json = "{\"type\":\"command\",\"player\":\"" + player
+                    + "\",\"command\":\"" + escaped + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception e) {
+                getLogger().warning("無法傳送指令訊息: " + e.getMessage());
+            }
+        });
+    }
+
 
     private void startHttpServer() {
         try {
