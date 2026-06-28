@@ -1,0 +1,3 @@
+server-port: 8080
+discord-bot-url: "http://172.18.0.1:3000"
+bot-api-token: "asriel"
