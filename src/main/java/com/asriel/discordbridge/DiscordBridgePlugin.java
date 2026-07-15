@@ -57,114 +57,114 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!command.getName().equalsIgnoreCase("getmap")) return false;
-
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("這個指令只能由玩家執行。");
-            return true;
-        }
-
-        if (mapIds.isEmpty()) {
-            sender.sendMessage("§c目前還沒有可領取的地圖。");
-            return true;
-        }
-
-        // 沒有帶參數就列出所有地圖
-        if (args.length == 0) {
-            sender.sendMessage("§e可用的地圖：");
-            for (int i = 0; i < mapIds.size(); i++) {
-                sender.sendMessage("§f  /getmap map" + i);
+        if (command.getName().equalsIgnoreCase("getmap")) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("這個指令只能由玩家執行。");
+                return true;
             }
-            return true;
-        }
 
-        // 解析 map0, map1, map2...
-        String arg = args[0].toLowerCase();
-        if (!arg.startsWith("map")) {
-            sender.sendMessage("§c格式錯誤，請使用 /getmap map0、/getmap map1 等。");
-            return true;
-        }
+            if (mapIds.isEmpty()) {
+                sender.sendMessage("§c目前還沒有可領取的地圖。");
+                return true;
+            }
 
-        int index;
-        try {
-            index = Integer.parseInt(arg.substring(3));
-        } catch (NumberFormatException e) {
-            sender.sendMessage("§c格式錯誤，請使用 /getmap map0、/getmap map1 等。");
-            return true;
-        }
+            if (args.length == 0) {
+                sender.sendMessage("§e可用的地圖：");
+                for (int i = 0; i < mapIds.size(); i++) {
+                    sender.sendMessage("§f  /getmap map" + i);
+                }
+                return true;
+            }
 
-        if (index < 0 || index >= mapIds.size()) {
-            sender.sendMessage("§c地圖不存在，目前共有 " + mapIds.size() + " 張（map0 到 map" + (mapIds.size() - 1) + "）。");
-            return true;
-        }
+            String arg = args[0].toLowerCase();
+            if (!arg.startsWith("map")) {
+                sender.sendMessage("§c格式錯誤，請使用 /getmap map0、/getmap map1 等。");
+                return true;
+            }
 
-        Player player = (Player) sender;
-        MapView map = Bukkit.getMap(mapIds.get(index));
-
-        if (map == null) {
-            sender.sendMessage("§c地圖不存在，請聯絡管理員。");
-            return true;
-        }
-
-        ItemStack mapItem = new ItemStack(Material.FILLED_MAP);
-        org.bukkit.inventory.meta.MapMeta meta =
-            (org.bukkit.inventory.meta.MapMeta) mapItem.getItemMeta();
-        meta.setMapView(map);
-        mapItem.setItemMeta(meta);
-
-        player.getInventory().addItem(mapItem);
-        player.sendMessage("§a已給予 map" + index + "！");
-        return true;
-    }
-
-    if (command.getName().equalsIgnoreCase("bind")) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("這個指令只能由玩家執行。");
-            return true;
-        }
-
-        if (args.length == 0) {
-            sender.sendMessage("§c請輸入 token：/bind <token>");
-            return true;
-        }
-
-        Player player = (Player) sender;
-        String token = args[0];
-
-        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            int index;
             try {
-                URL url = new URL(backendUrl + "/api/bind/mc");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setConnectTimeout(3000);
-                conn.setReadTimeout(3000);
-                conn.setDoOutput(true);
-
-                String json = "{\"token\":\"" + token + "\",\"mc_username\":\"" + player.getName() + "\"}";
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(json.getBytes(StandardCharsets.UTF_8));
-                }
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == 200) {
-                    Bukkit.getScheduler().runTask(this, () -> {
-                        player.sendMessage("§a綁定成功！");
-                    });
-                } else {
-                    Bukkit.getScheduler().runTask(this, () -> {
-                        player.sendMessage("§ctoken 無效，請確認後再試。");
-                    });
-                }
-                conn.disconnect();
-            } catch (Exception e) {
-                getLogger().warning("綁定失敗: " + e.getMessage());
-                Bukkit.getScheduler().runTask(this, () -> {
-                    player.sendMessage("§c無法連線到伺服器，請稍後再試。");
-                });
+                index = Integer.parseInt(arg.substring(3));
+            } catch (NumberFormatException e) {
+                sender.sendMessage("§c格式錯誤，請使用 /getmap map0、/getmap map1 等。");
+                return true;
             }
-        });
-        return true;
+
+            if (index < 0 || index >= mapIds.size()) {
+                sender.sendMessage("§c地圖不存在，目前共有 " + mapIds.size() + " 張（map0 到 map" + (mapIds.size() - 1) + "）。");
+                return true;
+            }
+
+            Player player = (Player) sender;
+            MapView map = Bukkit.getMap(mapIds.get(index));
+
+            if (map == null) {
+                sender.sendMessage("§c地圖不存在，請聯絡管理員。");
+                return true;
+            }
+
+            ItemStack mapItem = new ItemStack(Material.FILLED_MAP);
+            org.bukkit.inventory.meta.MapMeta meta =
+                (org.bukkit.inventory.meta.MapMeta) mapItem.getItemMeta();
+            meta.setMapView(map);
+            mapItem.setItemMeta(meta);
+
+            player.getInventory().addItem(mapItem);
+            player.sendMessage("§a已給予 map" + index + "！");
+            return true;
+        }
+
+        if (command.getName().equalsIgnoreCase("bind")) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("這個指令只能由玩家執行。");
+                return true;
+            }
+
+            if (args.length == 0) {
+                sender.sendMessage("§c請輸入 token：/bind <token>");
+                return true;
+            }
+
+            Player player = (Player) sender;
+            String token = args[0];
+
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                try {
+                    URL url = new URL(backendUrl + "/api/bind/mc");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setConnectTimeout(3000);
+                    conn.setReadTimeout(3000);
+                    conn.setDoOutput(true);
+
+                    String json = "{\"token\":\"" + token + "\",\"mc_username\":\"" + player.getName() + "\"}";
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(json.getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == 200) {
+                        Bukkit.getScheduler().runTask(this, () -> {
+                            player.sendMessage("§a綁定成功！");
+                        });
+                    } else {
+                        Bukkit.getScheduler().runTask(this, () -> {
+                            player.sendMessage("§ctoken 無效，請確認後再試。");
+                        });
+                    }
+                    conn.disconnect();
+                } catch (Exception e) {
+                    getLogger().warning("綁定失敗: " + e.getMessage());
+                    Bukkit.getScheduler().runTask(this, () -> {
+                        player.sendMessage("§c無法連線到伺服器，請稍後再試。");
+                    });
+                }
+            });
+            return true;
+        }
+
+        return false;
     }
 
     @EventHandler
