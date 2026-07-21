@@ -14,3 +14,6 @@ commands:
   check:
     description: 查看綁定帳號資訊
     usage: /check
+  claim:
+    description: 領取簽到獎勵
+    usage: /claim

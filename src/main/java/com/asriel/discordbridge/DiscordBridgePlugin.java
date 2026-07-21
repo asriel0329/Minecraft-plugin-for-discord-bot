@@ -31,6 +31,11 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import java.util.ArrayList;
 import java.util.List;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
 
 public class DiscordBridgePlugin extends JavaPlugin implements Listener {
     private HttpServer server;
@@ -233,6 +238,53 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
             return true;
         }
 
+        if (command.getName().equalsIgnoreCase("claim")) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("這個指令只能由玩家執行。");
+                return true;
+            }
+
+            Player player = (Player) sender;
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                try {
+                    URL url = new URL(backendUrl + "/api/reward/claim");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setConnectTimeout(3000);
+                    conn.setReadTimeout(3000);
+                    conn.setDoOutput(true);
+
+                    String json = "{\"mc_username\":\"" + player.getName() + "\"}";
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(json.getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    if (conn.getResponseCode() == 200) {
+                        String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                        JSONObject result = (JSONObject) new JSONParser().parse(body);
+                        long reward = (long) result.get("reward");
+
+                        Bukkit.getScheduler().runTask(this, () -> {
+                            if (reward > 0) {
+                                player.getInventory().addItem(new ItemStack(Material.EMERALD, (int) reward));
+                                player.sendMessage("§a已領取 " + reward + " 顆綠寶石！");
+                            } else {
+                                player.sendMessage("§c你目前沒有待領取的獎勵。");
+                            }
+                        });
+                    }
+                    conn.disconnect();
+                } catch (Exception e) {
+                    getLogger().warning("領取獎勵失敗: " + e.getMessage());
+                    Bukkit.getScheduler().runTask(this, () -> {
+                        player.sendMessage("§c無法連線到伺服器，請稍後再試。");
+                    });
+                }
+            });
+            return true;
+        }
+        
         return false;
     }
 
@@ -352,6 +404,38 @@ public class DiscordBridgePlugin extends JavaPlugin implements Listener {
         });
     }
 
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                URL url = new URL(backendUrl + "/api/reward/check?mc_username=" + player.getName());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+
+                if (conn.getResponseCode() == 200) {
+                    String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                    JSONObject result = (JSONObject) new JSONParser().parse(body);
+                    long reward = (long) result.get("reward");
+
+                    if (reward > 0) {
+                        Bukkit.getScheduler().runTask(this, () -> {
+                            TextComponent msg = new TextComponent("§a你有 " + reward + " 顆綠寶石獎勵！");
+                            TextComponent clickable = new TextComponent("§e[點擊領取]");
+                            clickable.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/claim"));
+                            msg.addExtra(clickable);
+                            player.spigot().sendMessage(msg);
+                        });
+                    }
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                getLogger().warning("檢查獎勵失敗: " + e.getMessage());
+            }
+        });
+    }
 
     private void startHttpServer() {
         try {
