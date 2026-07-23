@@ -97,19 +97,28 @@ public class DungeonManager implements Listener {
         ));
         player.sendMessage("§b你有 " + INVINCIBLE_SECONDS + " 秒的無敵保護！");
 
-        // 放置 barrier 圍牆（非同步執行避免卡頓）
         Bukkit.getScheduler().runTask(plugin, () -> {
             placeBarriers(world, chunkX, chunkZ);
 
-            List<UUID> mobUUIDs = spawnMobs(world, config, level, blockX, blockZ);
+            // 先建立 session 但怪物清單為空
             DungeonSession session = new DungeonSession(
-                player.getUniqueId(), level, mobUUIDs,
+                player.getUniqueId(), level, new ArrayList<>(),
                 player.getLocation(), chunkX, chunkZ
             );
             activeSessions.put(player.getUniqueId(), session);
 
-            player.sendMessage("§a已進入第 " + level + " 關副本！消滅所有怪物即可通關！");
-            player.sendMessage("§e剩餘怪物：§f" + mobUUIDs.size());
+            player.sendMessage("§a已進入第 " + level + " 關副本！");
+            player.sendMessage("§b怪物將在 " + INVINCIBLE_SECONDS + " 秒後生成...");
+
+            // 等無敵結束後生成怪物，並用玩家當時的 Y 座標
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!activeSessions.containsKey(player.getUniqueId())) return; // 玩家已離開副本
+
+                int playerY = player.getLocation().getBlockY();
+                List<UUID> mobUUIDs = spawnMobs(world, config, level, blockX, playerY, blockZ);
+                session.mobUUIDs.addAll(mobUUIDs);
+                player.sendMessage("§e剩餘怪物：§f" + mobUUIDs.size());
+            }, INVINCIBLE_SECONDS * 20L); // 等無敵秒數結束
         });
     }
 
@@ -139,7 +148,7 @@ public class DungeonManager implements Listener {
         }
     }
 
-    private List<UUID> spawnMobs(World world, DungeonConfig config, int level, int centerX, int centerZ) {
+    private List<UUID> spawnMobs(World world, DungeonConfig config, int level, int centerX, int playerY, int centerZ) {
         List<UUID> mobUUIDs = new ArrayList<>();
         for (int i = 0; i < config.mobCount; i++) {
 
@@ -152,7 +161,8 @@ public class DungeonManager implements Listener {
 
             // 找到地表高度生成怪物
             int surfaceY = world.getHighestBlockYAt(centerX + (int) offsetX, centerZ + (int) offsetZ);
-            Location mobLoc = new Location(world, centerX + offsetX, surfaceY + 1, centerZ + offsetZ);
+            // 找到地表高度生成怪物
+            Location mobLoc = new Location(world, centerX + offsetX, playerY, centerZ + offsetZ);
             LivingEntity mob = (LivingEntity) world.spawnEntity(mobLoc, config.entityType);
 
             // ==============================
