@@ -98,21 +98,18 @@ public class DungeonManager implements Listener {
         player.sendMessage("§b你有 " + INVINCIBLE_SECONDS + " 秒的無敵保護！");
 
         // 放置 barrier 圍牆（非同步執行避免卡頓）
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             placeBarriers(world, chunkX, chunkZ);
 
-            // barrier 放完後生成怪物（回到主執行緒）
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                List<UUID> mobUUIDs = spawnMobs(world, config, level, blockX, blockZ);
-                DungeonSession session = new DungeonSession(
-                    player.getUniqueId(), level, mobUUIDs,
-                    player.getLocation(), chunkX, chunkZ
-                );
-                activeSessions.put(player.getUniqueId(), session);
+            List<UUID> mobUUIDs = spawnMobs(world, config, level, blockX, blockZ);
+            DungeonSession session = new DungeonSession(
+                player.getUniqueId(), level, mobUUIDs,
+                player.getLocation(), chunkX, chunkZ
+            );
+            activeSessions.put(player.getUniqueId(), session);
 
-                player.sendMessage("§a已進入第 " + level + " 關副本！消滅所有怪物即可通關！");
-                player.sendMessage("§e剩餘怪物：§f" + mobUUIDs.size());
-            });
+            player.sendMessage("§a已進入第 " + level + " 關副本！消滅所有怪物即可通關！");
+            player.sendMessage("§e剩餘怪物：§f" + mobUUIDs.size());
         });
     }
 
@@ -172,6 +169,7 @@ public class DungeonManager implements Listener {
 
             mob.setCustomName("§c[Lv." + level + "] " + mob.getType().name());
             mob.setCustomNameVisible(true);
+            mob.setGlowing(true);
             mobUUIDs.add(mob.getUniqueId());
         }
         return mobUUIDs;
