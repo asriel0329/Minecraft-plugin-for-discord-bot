@@ -168,6 +168,7 @@ public class DungeonManager implements Listener {
             // ==============================
 
             mob.setCustomName("§c[Lv." + level + "] " + mob.getType().name());
+            plugin.getLogger().info("生成怪物: " + config.entityType + " 在 " + mobLoc);
             mob.setCustomNameVisible(true);
             mob.setGlowing(true);
             mobUUIDs.add(mob.getUniqueId());
