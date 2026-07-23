@@ -8,7 +8,7 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-
+import org.bukkit.event.entity.PlayerDeathEvent;
 import java.util.*;
 
 public class DungeonManager implements Listener {
@@ -197,11 +197,22 @@ public class DungeonManager implements Listener {
         }
     }
 
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (activeSessions.containsKey(player.getUniqueId())) {
+            DungeonSession session = activeSessions.get(player.getUniqueId());
+            activeSessions.remove(player.getUniqueId());
+            clearBarriers(player.getWorld(), session.chunkX, session.chunkZ);
+            player.sendMessage("§c你在副本中死亡，副本已結束。");
+        }
+    }
+
     private void completeDungeon(Player player, DungeonSession session) {
         activeSessions.remove(player.getUniqueId());
 
         // 清空 barrier 和 chunk 內怪物
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             clearBarriers(player.getWorld(), session.chunkX, session.chunkZ);
         });
 
